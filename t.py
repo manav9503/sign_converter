@@ -4,8 +4,6 @@ import mediapipe as mp
 import numpy as np
 import os
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
 import joblib  # For saving and loading the model
 
 # MediaPipe setup
@@ -20,7 +18,7 @@ st.set_page_config(page_title="Sign Language App", layout="wide")
 st.title("Sign Language Recording and Training App")
 
 # Menu bar with options
-menu_option = st.sidebar.selectbox("Select Option", ["Record Data", "Train Model"])
+menu_option = st.sidebar.selectbox("Select Option", ["Record Data", "Train Model", "Use Model"])
 
 if menu_option == "Record Data":
     # Input for action label
