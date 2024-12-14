@@ -35,9 +35,8 @@ st.title("Sign Language Recognition")
 # Label input
 label = st.text_input("Enter label for the sign")
 if label:
-    # Create a directory for the label
-    DATA_PATH = "C:\\Users\\manav\\OneDrive\\Desktop\\major\\data"
-    label_path = os.path.join(DATA_PATH, label)
+    # Create a directory for the label in the current working directory
+    label_path = os.path.join(os.getcwd(), label)
     if not os.path.exists(label_path):
         os.makedirs(label_path)
 
@@ -105,7 +104,7 @@ if label:
         np.save(npy_path, seq)
     
     # Save the label map
-    with open(os.path.join(DATA_PATH, "labels.pkl"), "wb") as f:
+    with open(os.path.join(os.getcwd(), "labels.pkl"), "wb") as f:
         pickle.dump({label: len(labels)}, f)
 
     st.success("Data saved successfully!")
@@ -118,11 +117,11 @@ if train_button:
         st.error("No data available for training. Please collect data first.")
     else:
         data, labels = [], []
-        for label in os.listdir(DATA_PATH):
-            if os.path.isdir(os.path.join(DATA_PATH, label)):
-                for sequence in os.listdir(os.path.join(DATA_PATH, label)):
+        for label in os.listdir(os.getcwd()):
+            if os.path.isdir(os.path.join(os.getcwd(), label)):
+                for sequence in os.listdir(os.path.join(os.getcwd(), label)):
                     if sequence.endswith(".npy"):
-                        npy_path = os.path.join(DATA_PATH, label, sequence)
+                        npy_path = os.path.join(os.getcwd(), label, sequence)
                         data.append(np.load(npy_path))
                         labels.append(label)
 
@@ -144,5 +143,5 @@ if train_button:
 
             model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
             model.fit(X_train, y_train, epochs=10, validation_data=(X_test, y_test))
-            model.save(os.path.join(DATA_PATH, "model.h5"))
+            model.save(os.path.join(os.getcwd(), "model.h5"))
             st.success("Model trained and saved successfully!")
