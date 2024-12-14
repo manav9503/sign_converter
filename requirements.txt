@@ -3,4 +3,4 @@ opencv-python-headless
 numpy
 Pillow
 scikit-learn
-fuzzywuzzy
+mediapipe
