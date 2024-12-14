@@ -47,6 +47,10 @@ if menu_option == "Record Data":
         global is_recording
 
         cap = cv2.VideoCapture(0)
+        if not cap.isOpened():
+            st.error("Failed to access webcam. Please check your camera.")
+            return
+
         frame_count = 0
         sequences_stored = len([file for file in os.listdir(folder_path) if file.endswith(".npy")])
 
@@ -149,22 +153,24 @@ elif menu_option == "Train Model":
     if train_button:
         with st.spinner("Loading data..."):
             X, y, action_map = load_data(data_dir)
-            st.write(f"Loaded {len(X)} sequences for training.")
-            num_actions = len(action_map)
+            if X.shape[0] == 0:
+                st.error("No data found. Please record some gestures first.")
+            else:
+                st.write(f"Loaded {len(X)} sequences for training.")
+                num_actions = len(action_map)
 
-        with st.spinner("Training the model..."):
-            # Flatten the sequence data to make it suitable for Random Forest
-            X_flat = X.reshape(X.shape[0], -1)
+                # Flatten the sequence data to make it suitable for Random Forest
+                X_flat = X.reshape(X.shape[0], -1)
 
-            # Train a Random Forest classifier
-            model = RandomForestClassifier(n_estimators=100, random_state=42)
-            model.fit(X_flat, y)
+                # Train a Random Forest classifier
+                model = RandomForestClassifier(n_estimators=100, random_state=42)
+                model.fit(X_flat, y)
 
-            # Save the model
-            model_path = os.path.join(data_dir, "rf_model.pkl")
-            joblib.dump(model, model_path)
+                # Save the model
+                model_path = os.path.join(data_dir, "rf_model.pkl")
+                joblib.dump(model, model_path)
 
-            st.success(f"Model trained and saved to: {model_path}")
+                st.success(f"Model trained and saved to: {model_path}")
 
 elif menu_option == "Use Model":
     st.header("Use Trained Model")
@@ -179,38 +185,41 @@ elif menu_option == "Use Model":
 
     # Real-time gesture recognition
     cap = cv2.VideoCapture(0)
-    with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                st.error("Failed to access webcam.")
-                break
+    if not cap.isOpened():
+        st.error("Failed to access webcam. Please check your camera.")
+    else:
+        with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    st.error("Failed to access webcam.")
+                    break
 
-            frame = cv2.flip(frame, 1)
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = holistic.process(rgb_frame)
+                frame = cv2.flip(frame, 1)
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results = holistic.process(rgb_frame)
 
-            # Process and prepare data for prediction
-            landmarks_data = []
-            if results.pose_landmarks:
-                for lm in results.pose_landmarks.landmark:
-                    landmarks_data.append([lm.x, lm.y, lm.z])
-            if results.face_landmarks:
-                for lm in results.face_landmarks.landmark:
-                    landmarks_data.append([lm.x, lm.y, lm.z])
-            if results.left_hand_landmarks:
-                for lm in results.left_hand_landmarks.landmark:
-                    landmarks_data.append([lm.x, lm.y, lm.z])
-            if results.right_hand_landmarks:
-                for lm in results.right_hand_landmarks.landmark:
-                    landmarks_data.append([lm.x, lm.y, lm.z])
+                # Process and prepare data for prediction
+                landmarks_data = []
+                if results.pose_landmarks:
+                    for lm in results.pose_landmarks.landmark:
+                        landmarks_data.append([lm.x, lm.y, lm.z])
+                if results.face_landmarks:
+                    for lm in results.face_landmarks.landmark:
+                        landmarks_data.append([lm.x, lm.y, lm.z])
+                if results.left_hand_landmarks:
+                    for lm in results.left_hand_landmarks.landmark:
+                        landmarks_data.append([lm.x, lm.y, lm.z])
+                if results.right_hand_landmarks:
+                    for lm in results.right_hand_landmarks.landmark:
+                        landmarks_data.append([lm.x, lm.y, lm.z])
 
-            if landmarks_data:
-                # Flatten the data for prediction
-                sequence = np.array(landmarks_data).reshape(1, -1)
-                prediction = model.predict(sequence)
-                predicted_class = prediction[0]
-                st.write(f"Predicted Action: {list(action_map.keys())[predicted_class]}")
+                if landmarks_data:
+                    # Flatten the data for prediction
+                    sequence = np.array(landmarks_data).reshape(1, -1)
+                    prediction = model.predict(sequence)
+                    predicted_class = prediction[0]
+                    st.write(f"Predicted Action: {list(action_map.keys())[predicted_class]}")
 
-            # Display frame
-            frame_placeholder.image(frame, channels="BGR")
+                # Display frame
+                frame_placeholder.image(frame, channels="BGR")
