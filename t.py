@@ -7,7 +7,7 @@ from PIL import Image
 
 # Load your pre-trained model (make sure to replace this with your actual model)
 # For example, a model that takes in images and predicts sign language labels
-model = tf.keras.models.load_model("C:\\Users\\manav\\Downloads\\action.h5")
+model = tf.keras.models.load_model('action.h5')
 
 # Mediapipe Hand Detection Setup
 mp_hands = mp.solutions.hands
