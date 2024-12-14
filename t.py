@@ -192,4 +192,38 @@ elif menu_option == "Use Model":
         # Process the video here
         st.video(uploaded_file)
     else:
-        st.write("Please upload a video or use the webcam locally.")
+        # If no file is uploaded, use the webcam for live input
+        st.write("Using webcam for live input...")
+
+        cap = cv2.VideoCapture(0)
+        frame_placeholder = st.empty()
+
+        if not cap.isOpened():
+            st.error("Error: Could not access the webcam.")
+        else:
+            with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
+                while True:
+                    ret, frame = cap.read()
+                    if not ret:
+                        st.error("Failed to capture frame.")
+                        break
+
+                    # Flip the frame horizontally (optional)
+                    frame = cv2.flip(frame, 1)
+
+                    # Convert the frame to RGB (Streamlit uses RGB format)
+                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+                    # Process the frame using MediaPipe
+                    results = holistic.process(rgb_frame)
+
+                    # Draw landmarks on frame
+                    mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS)
+                    mp_drawing.draw_landmarks(frame, results.face_landmarks, mp_holistic.FACEMESH_TESSELATION)
+                    mp_drawing.draw_landmarks(frame, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
+                    mp_drawing.draw_landmarks(frame, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
+
+                    # Display the frame in Streamlit
+                    frame_placeholder.image(frame, channels="BGR", use_column_width=True)
+
+        cap.release()
