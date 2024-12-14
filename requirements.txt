@@ -4,4 +4,3 @@ numpy
 Pillow
 scikit-learn
 mediapipe
-tenserflow
