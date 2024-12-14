@@ -1,76 +1,148 @@
 import streamlit as st
 import cv2
-import tensorflow as tf
 import numpy as np
+import os
 import mediapipe as mp
-from PIL import Image
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.utils import to_categorical
+from sklearn.model_selection import train_test_split
+import pickle
 
-# Load your pre-trained model (make sure to replace this with your actual model)
-# For example, a model that takes in images and predicts sign language labels
-model = tf.keras.models.load_model('action.h5')
+# Mediapipe setup
+mp_drawing = mp.solutions.drawing_utils
+mp_holistic = mp.solutions.holistic
+mp_face_mesh = mp.solutions.face_mesh  # Add face mesh for drawing face landmarks
 
-# Mediapipe Hand Detection Setup
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
-mp_draw = mp.solutions.drawing_utils
+def mediapipe_detection(image, model):
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image.flags.writeable = False
+    results = model.process(image)
+    image.flags.writeable = True
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    return image, results
 
-# Function to process the hand gestures
-def process_frame(frame):
-    # Convert the BGR image to RGB
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = hands.process(frame_rgb)
+def extract_keypoints(results):
+    pose = np.array([[res.x, res.y, res.z, res.visibility] for res in results.pose_landmarks.landmark]).flatten() if results.pose_landmarks else np.zeros(132)
+    face = np.array([[res.x, res.y, res.z] for res in results.face_landmarks.landmark]).flatten() if results.face_landmarks else np.zeros(1404)
+    lh = np.array([[res.x, res.y, res.z] for res in results.left_hand_landmarks.landmark]).flatten() if results.left_hand_landmarks else np.zeros(63)
+    rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(63)
+    return np.concatenate([pose, face, lh, rh])
+
+# Streamlit UI
+st.title("Sign Language Recognition")
+
+# Label input
+label = st.text_input("Enter label for the sign")
+if label:
+    # Create a directory for the label
+    DATA_PATH = "C:\\Users\\manav\\OneDrive\\Desktop\\major\\data"
+    label_path = os.path.join(DATA_PATH, label)
+    if not os.path.exists(label_path):
+        os.makedirs(label_path)
+
+    # Buttons for start and stop recording
+    start_button = st.button("Start Recording")
+    stop_button = st.button("Stop Recording")
     
-    if results.multi_hand_landmarks:
-        for hand_landmarks in results.multi_hand_landmarks:
-            # Draw hand landmarks on the frame
-            mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-        
-        # You can extract the landmarks to use for prediction
-        hand_landmarks = results.multi_hand_landmarks[0]  # Assuming one hand
-        landmarks = []
-        
-        for landmark in hand_landmarks.landmark:
-            landmarks.append([landmark.x, landmark.y, landmark.z])
-        
-        # Convert landmarks to numpy array (you can customize based on your model's requirement)
-        landmarks = np.array(landmarks).flatten()
+    # Initialize recording variables
+    recording = False
+    sequence = []
+    sequences = []
+    labels = []
 
-        # Model prediction (assuming the model expects flattened landmarks as input)
-        prediction = model.predict(np.expand_dims(landmarks, axis=0))
-        predicted_label = np.argmax(prediction)
-        return frame, predicted_label
-    return frame, None
-
-# Streamlit WebApp
-def main():
-    st.title("Sign Language Recognition")
-
-    # OpenCV Video Capture for live video feed
+    # Video capture setup
     cap = cv2.VideoCapture(0)
+    frame_window = st.image([])  # Create an empty placeholder for the webcam feed
 
-    stframe = st.empty()
+    with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic, mp_face_mesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5) as face_mesh:  # Use face mesh here
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-    while True:
-        ret, frame = cap.read()
-        
-        if not ret:
-            break
-        
-        # Process the frame
-        frame, predicted_label = process_frame(frame)
+            image, results = mediapipe_detection(frame, holistic)
 
-        # Convert the frame to RGB format for Streamlit display
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        img = Image.fromarray(frame_rgb)
+            # Draw landmarks
+            if results.face_landmarks:
+                mp_drawing.draw_landmarks(image, results.face_landmarks, mp_face_mesh.FACEMESH_TESSELATION)  # Use face mesh connections here
+            if results.right_hand_landmarks:
+                mp_drawing.draw_landmarks(image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
+            if results.left_hand_landmarks:
+                mp_drawing.draw_landmarks(image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
+            if results.pose_landmarks:
+                mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS)
 
-        # Show the processed frame
-        stframe.image(img, channels="RGB", use_column_width=True)
+            # Start recording when the button is pressed
+            if start_button:
+                recording = True
+                st.write("Recording started...")
 
-        # Display the predicted label
-        if predicted_label is not None:
-            st.text(f"Predicted Sign: {predicted_label}")  # Replace with actual label names
+            # Stop recording when the button is pressed
+            if stop_button:
+                recording = False
+                sequences.append(sequence)
+                labels.append(label)  # Add label for the current sequence
+                sequence = []
+                st.write("Recording stopped.")
+                break  # Stop the loop after stopping the recording
+
+            if recording:
+                keypoints = extract_keypoints(results)
+                sequence.append(keypoints)
+
+            # Display the webcam feed in Streamlit
+            frame_window.image(image, channels="BGR", use_column_width=True)
+
+            if cv2.waitKey(10) & 0xFF == ord('q'):
+                break
 
     cap.release()
 
-if __name__ == "__main__":
-    main()
+    # Save Data Automatically After Collection
+    for sequence_idx, seq in enumerate(sequences):
+        npy_path = os.path.join(label_path, f"sequence_{sequence_idx}.npy")
+        np.save(npy_path, seq)
+    
+    # Save the label map
+    with open(os.path.join(DATA_PATH, "labels.pkl"), "wb") as f:
+        pickle.dump({label: len(labels)}, f)
+
+    st.success("Data saved successfully!")
+
+# Option to train the model
+train_button = st.button("Train Model")
+if train_button:
+    # Ensure that labels are not empty before proceeding
+    if not labels:
+        st.error("No data available for training. Please collect data first.")
+    else:
+        data, labels = [], []
+        for label in os.listdir(DATA_PATH):
+            if os.path.isdir(os.path.join(DATA_PATH, label)):
+                for sequence in os.listdir(os.path.join(DATA_PATH, label)):
+                    if sequence.endswith(".npy"):
+                        npy_path = os.path.join(DATA_PATH, label, sequence)
+                        data.append(np.load(npy_path))
+                        labels.append(label)
+
+        # Debugging: Check if labels are populated correctly
+        st.write(f"Labels: {labels}")
+
+        if labels:
+            X = np.array(data)
+            y = to_categorical(labels).astype(int)
+
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+            model = Sequential([
+                LSTM(64, return_sequences=True, activation='relu', input_shape=(30, 1662)),
+                LSTM(128, return_sequences=False, activation='relu'),
+                Dense(64, activation='relu'),
+                Dense(len(set(labels)), activation='softmax')
+            ])
+
+            model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+            model.fit(X_train, y_train, epochs=10, validation_data=(X_test, y_test))
+            model.save(os.path.join(DATA_PATH, "model.h5"))
+            st.success("Model trained and saved successfully!")
