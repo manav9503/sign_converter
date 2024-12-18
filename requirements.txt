@@ -11,3 +11,4 @@ tensorboard
 tensorboard-data-server
 tensorflow-io-gcs-filesystem
 termcolor
+streamlit_webrtc
