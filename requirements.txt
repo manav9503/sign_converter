@@ -1,9 +1,9 @@
 numpy==1.24.3
-pillow==9.5.0
-matplotlib==3.7.1
-streamlit==1.23.0
-opencv-python-headless==4.7.0.72
-tensorflow==2.13.0
-mediapipe==0.9.3
+pydistutils
+matplotlib
+streamlit
+opencv-python-headless
+tensorflow
+mediapipe
 
 sqlite3
