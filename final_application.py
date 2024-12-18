@@ -23,7 +23,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 sys.stderr.reconfigure(encoding="utf-8")
 
 # Load the model and define actions
-MODEL_PATH = "C:/Users/manav/OneDrive/Desktop/action2.keras"
+MODEL_PATH = "action.keras"
 model = load_model(MODEL_PATH)
 
 actions = ["blank", "Hello", "My", "Name", "Is"]
