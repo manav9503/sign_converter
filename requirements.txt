@@ -1,9 +1,7 @@
 numpy==1.24.3
-pydistutils
 matplotlib
 streamlit
 opencv-python-headless
 tensorflow
 mediapipe
-
 sqlite3
