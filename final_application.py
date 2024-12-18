@@ -2,7 +2,9 @@ import os
 import sys
 import time
 import streamlit as st
-import cv2
+import cv2 as cv
+from cv2 import aruco
+import argparse
 import numpy as np
 import zipfile
 from io import BytesIO
@@ -257,12 +259,12 @@ if menu == "Real-Time Detection":
     predictions = []
 
     if start_button:
-        cap = cv2.VideoCapture(0)
+        cap = cv.VideoCapture(0)
         if not cap.isOpened():
             st.error("Error accessing the webcam. Please ensure it is connected and try again.")
         else:
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
 
             prev_time = 0
             with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
@@ -316,7 +318,7 @@ if menu == "Real-Time Detection":
                     stframe.image(image, channels="BGR")
 
             cap.release()
-            cv2.destroyAllWindows()
+            cv.destroyAllWindows()
 
 elif menu == "Collect Training Data":
     st.title("Collect Training Data 📷")
@@ -373,7 +375,7 @@ elif menu == "Collect Training Data":
                     # Ensure the camera is released and all windows are closed
                     if cap.isOpened():
                         cap.release()
-                    cv2.destroyAllWindows()
+                    cv.destroyAllWindows()
 
                 if st.session_state.recording:
                     st.success("Data collection completed!")
