@@ -2,14 +2,16 @@ import os
 import sys
 import time
 import streamlit as st
+import cv2
 import numpy as np
-import sqlite3
-import uuid
 import json
 import mediapipe as mp
 from tensorflow.keras.models import load_model
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, VideoTransformerBase
+import sqlite3
+import uuid
 import zipfile
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
+from io import BytesIO
 
 # Admin code for validation
 ADMIN_CODE = "12345"  # Replace with a secure code or environment variable
@@ -25,7 +27,6 @@ sys.stderr.reconfigure(encoding="utf-8")
 # Load the model and define actions
 MODEL_PATH = "action.keras"
 model = load_model(MODEL_PATH)
-
 actions = ["blank", "Hello", "My", "Name", "Is"]
 colors = [(245, 117, 16), (117, 245, 16), (16, 117, 245), (117, 245, 16), (16, 117, 245)]
 TARGET_FEATURE_DIM = 1662  # Expected feature dimension for the model
@@ -36,7 +37,6 @@ def create_db():
     conn = sqlite3.connect('tokens.db')
     c = conn.cursor()
 
-    # Check if 'tokens' table exists and add 'labels' column if not present
     c.execute('''PRAGMA table_info(tokens)''')
     columns = [column[1] for column in c.fetchall()]
     if 'labels' not in columns:
@@ -50,7 +50,7 @@ def create_db():
             labels TEXT
         )
     ''')
-    
+
     c.execute('''
         CREATE TABLE IF NOT EXISTS training_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,15 +82,6 @@ def get_user_from_token(token):
     conn.close()
     return user
 
-def get_all_users():
-    """Get all users and their details."""
-    conn = sqlite3.connect('tokens.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM tokens")
-    users = c.fetchall()
-    conn.close()
-    return users
-
 # Initialize the database
 create_db()
 
@@ -111,11 +102,6 @@ def prob_viz(res, actions, input_frame, colors):
             cv2.LINE_AA,
         )
     return output_frame
-
-if "recording" not in st.session_state:
-    st.session_state.recording = False
-if "stop" not in st.session_state:
-    st.session_state.stop = False
 
 mp_holistic = mp.solutions.holistic
 mp_drawing = mp.solutions.drawing_utils
@@ -144,17 +130,6 @@ def extract_keypoints(results):
     rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21 * 3)
     keypoints = np.concatenate([pose, lh, rh])
     return np.pad(keypoints, (0, TARGET_FEATURE_DIM - len(keypoints)), mode="constant")
-
-def save_training_data_to_db(token, label, sequence, frame, keypoints):
-    """Save collected keypoints data to the database."""
-    conn = sqlite3.connect('tokens.db')
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO training_data (token, label, sequence, frame, keypoints)
-        VALUES (?, ?, ?, ?, ?)
-    """, (token, label, sequence, frame, json.dumps(keypoints.tolist())))
-    conn.commit()
-    conn.close()
 
 # Streamlit app
 st.set_page_config(page_title="Sign Language Recognition", page_icon="🤖", layout="wide")
@@ -187,49 +162,44 @@ st.markdown(
     </style>
     """, unsafe_allow_html=True)
 
-# Streamlit WebRTC Video Transformer
+# VideoTransformer for Streamlit WebRTC
 class VideoTransformer(VideoTransformerBase):
-    def __init__(self):
-        self.sequence = []
-        self.sentence = []
-        self.predictions = []
-
     def transform(self, frame):
-        # Get the image as an array
         image = frame.to_ndarray(format="bgr24")
-
-        # Process the frame using MediaPipe
-        image, results = mediapipe_detection(image, mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5))
+        results = mediapipe_detection(image, mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5))[1]
         draw_styled_landmarks(image, results)
-
         keypoints = extract_keypoints(results)
-        self.sequence.append(keypoints)
-        self.sequence = self.sequence[-30:]
-
-        if len(self.sequence) == 30:
-            try:
-                res = model.predict(np.expand_dims(self.sequence, axis=0))[0]
-                confidence = res[np.argmax(res)]
-
-                self.predictions.append(np.argmax(res))
-
-                if confidence > 0.5:
-                    predicted_action = actions[np.argmax(res)]
-                    if len(self.sentence) == 0 or predicted_action != self.sentence[-1]:
-                        self.sentence.append(predicted_action)
-
-                if len(self.sentence) > 5:
-                    self.sentence = self.sentence[-5:]
-
-                image = prob_viz(res, actions, image, colors)
-            except Exception as e:
-                st.error(f"Error during prediction: {e}")
-
-        # Display the predicted action
-        st.text(f"Predicted Action: {' '.join(self.sentence)}")
+        
+        # Predict action
+        sequence = [keypoints]
+        sequence = sequence[-30:]
+        if len(sequence) == 30:
+            res = model.predict(np.expand_dims(sequence, axis=0))[0]
+            confidence = res[np.argmax(res)]
+            if confidence > 0.5:
+                predicted_action = actions[np.argmax(res)]
+                st.session_state.predicted_action = predicted_action
+        
+        # Return the frame with predicted action
         return image
 
 # Streamlit app logic
-if menu == "Real-Time Detection":
-    st.title("Real-Time Action Detection 🤖")
-    webrtc_streamer(key="example", mode=WebRtcMode.SENDRECV, video_transformer_factory=VideoTransformer)
+def main():
+    st.title("Sign Language Recognition")
+    if menu == "Real-Time Detection":
+        st.subheader("Real-Time Action Detection 🤖")
+        webrtc_streamer(key="sign-language", mode=WebRtcMode.SENDRECV, video_transformer_factory=VideoTransformer)
+        if 'predicted_action' in st.session_state:
+            st.write(f"Predicted Action: {st.session_state.predicted_action}")
+    elif menu == "Collect Training Data":
+        st.subheader("Collect Training Data 📷")
+        # Add functionality for collecting training data
+    elif menu == "View Labels":
+        st.subheader("View Labels 📂")
+        # Add functionality for viewing labels
+    elif menu == "Admin Panel":
+        st.subheader("Admin Panel 🔐")
+        # Add functionality for admin panel
+
+if __name__ == "__main__":
+    main()
