@@ -9,7 +9,6 @@ import json
 import mediapipe as mp
 from tensorflow.keras.models import load_model
 import zipfile
-import json
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
 
 # Admin code for validation
@@ -24,7 +23,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 sys.stderr.reconfigure(encoding="utf-8")
 
 # Load the model and define actions
-MODEL_PATH = "action.keras"
+MODEL_PATH = "C:/Users/manav/OneDrive/Desktop/action2.keras"
 model = load_model(MODEL_PATH)
 
 actions = ["blank", "Hello", "My", "Name", "Is"]
