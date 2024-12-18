@@ -5,3 +5,4 @@ streamlit
 opencv-python-headless
 tensorflow
 mediapipe
+sqlite3
