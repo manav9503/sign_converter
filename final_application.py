@@ -50,12 +50,7 @@ def create_db():
     conn = sqlite3.connect('tokens.db')
     c = conn.cursor()
 
-    # Check if 'tokens' table exists and add 'labels' column if not present
-    c.execute('''PRAGMA table_info(tokens)''')
-    columns = [column[1] for column in c.fetchall()]
-    if 'labels' not in columns:
-        c.execute('''ALTER TABLE tokens ADD COLUMN labels TEXT''')
-
+    # Create the tokens table if it doesn't exist
     c.execute('''
         CREATE TABLE IF NOT EXISTS tokens (
             id TEXT PRIMARY KEY, 
@@ -71,7 +66,7 @@ def create_db():
     if 'labels' not in columns:
         c.execute('''ALTER TABLE tokens ADD COLUMN labels TEXT''')
 
-    
+    # Create the training_data table if it doesn't exist
     c.execute('''
         CREATE TABLE IF NOT EXISTS training_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,6 +80,7 @@ def create_db():
     ''')
     conn.commit()
     conn.close()
+
 
 
 def get_all_users():
