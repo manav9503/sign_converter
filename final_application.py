@@ -10,7 +10,7 @@ from streamlit_webrtc import WebRtcMode, webrtc_streamer
 from typing import NamedTuple
 
 # Configuration
-MODEL_PATH = "action.keras"
+MODEL_PATH = "action.keras"  # Replace with your actual model path
 actions = ["blank", "Hello", "My", "Name", "Is"]
 TARGET_FEATURE_DIM = 1662  # Expected feature dimension for the model
 
@@ -72,11 +72,17 @@ def video_frame_callback(frame):
     sequence = [keypoints]
     sequence = sequence[-30:]
     if len(sequence) == 30:
-        res = model.predict(np.expand_dims(sequence, axis=0))[0]
-        confidence = res[np.argmax(res)]
-        if confidence > 0.5:
-            predicted_action = actions[np.argmax(res)]
-            result_queue.put([Detection(label=predicted_action, score=confidence)])
+        try:
+            res = model.predict(np.expand_dims(sequence, axis=0))[0]
+            confidence = res[np.argmax(res)]
+            if confidence > 0.5:
+                predicted_action = actions[np.argmax(res)]
+                result_queue.put([Detection(label=predicted_action, score=confidence)])
+            else:
+                result_queue.put([Detection(label="No action detected", score=confidence)])
+        except Exception as e:
+            print(f"Error during prediction: {e}")
+            result_queue.put([Detection(label="Error in prediction", score=0)])
 
     return frame
 
@@ -105,4 +111,3 @@ st.markdown(
     "This demo is powered by a deep learning model for sign language recognition. "
     "It uses MediaPipe for pose and hand tracking, and a trained model for predicting sign language actions."
 )
-
