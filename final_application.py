@@ -64,6 +64,13 @@ def create_db():
             labels TEXT
         )
     ''')
+
+    # Check if the 'labels' column exists and add it if necessary
+    c.execute('''PRAGMA table_info(tokens)''')
+    columns = [column[1] for column in c.fetchall()]
+    if 'labels' not in columns:
+        c.execute('''ALTER TABLE tokens ADD COLUMN labels TEXT''')
+
     
     c.execute('''
         CREATE TABLE IF NOT EXISTS training_data (
